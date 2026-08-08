@@ -1,155 +1,187 @@
 # USB Video Player — Raspberry Pi 5
 
-Player video per installazioni: il Raspberry Pi 5 senza interfaccia grafica
-riproduce automaticamente in loop tutti i video contenuti nelle chiavette USB
-collegate. Se non c'è nessuna chiavetta, o se non contiene video compatibili,
-a schermo compare un messaggio di avviso.
+Player video per installazioni e allestimenti su Raspberry Pi 5. Il Pi si avvia
+senza interfaccia grafica e riproduce in loop tutti i video contenuti in una
+chiavetta USB. Se la chiavetta non c'è, o non contiene file compatibili, a
+schermo compare un messaggio di avviso.
 
-## Contenuto
+Nato per mostre e installazioni dove serve una cosa sola: attacchi la corrente,
+infili la chiavetta, parte il video. Nessuna tastiera, nessun telecomando,
+nessun menu.
 
-| File | Destinazione | Cosa fa |
-|---|---|---|
-| `usb-video-player.sh` | `/usr/local/bin/` | lo script del player |
-| `usb-video-player.service` | `/etc/systemd/system/` | avvio automatico al boot |
-| `install.sh` | — | installa tutto |
-| `uninstall.sh` | — | rimuove tutto |
-| `firstboot.sh` | — | opzionale, installazione automatica al primo avvio |
+## Caratteristiche
+
+- Riconoscimento automatico delle chiavette USB, inserite anche a Pi già acceso
+- Montaggio in **sola lettura**: staccare la chiavetta a caldo non la danneggia
+- Ordinamento naturale dei file, sia alfabetico che numerico (`clip2` prima di `clip10`)
+- Countdown di 10 secondi con il numero di video trovati prima dell'avvio
+- Riproduzione in loop infinito con una sola istanza di mpv, senza schermate nere fra un file e l'altro
+- Video e audio forzati sull'uscita **HDMI A**
+- Messaggio a schermo quando manca la chiavetta o non ci sono video
+- Avvio automatico al boot e riavvio automatico in caso di crash
+- Spegnimento pulito con il pulsante integrato del Pi 5
 
 ## Requisiti
 
-- Raspberry Pi 5 con Raspberry Pi OS Lite (Bookworm o successivo), 64 bit
-- schermo collegato alla porta **HDMI A**, quella vicina all'alimentazione
-- **connessione a internet almeno per l'installazione**: mpv e ImageMagick non
-  sono presenti in Pi OS Lite e vanno scaricati. Dopo, il Pi può restare offline.
+- Raspberry Pi 5
+- Raspberry Pi OS Lite 64 bit (Bookworm o successivo)
+- microSD da 16 GB o superiore
+- schermo collegato alla porta HDMI A, quella vicina all'alimentazione
+- connessione a internet **solo durante l'installazione**: mpv e ImageMagick non
+  sono presenti in Pi OS Lite. Dopo, il Pi può restare offline per sempre.
 
-## Installazione dalla scheda SD (senza SSH)
+## Struttura
 
-Utile quando non hai modo di trasferire file sul Pi già avviato.
+```
+usb-video-player.sh         lo script del player          -> /usr/local/bin/
+usb-video-player.service    unit systemd, avvio al boot   -> /etc/systemd/system/
+install.sh                  installazione
+uninstall.sh                rimozione
+firstboot.sh                installazione automatica al primo avvio (opzionale)
+```
 
-1. Scrivi Raspberry Pi OS Lite (64 bit) con Raspberry Pi Imager. Nelle opzioni
-   avanzate (icona ingranaggio) imposta **utente e password**, la **Wi-Fi** e
-   attiva **SSH**: la rete serve per l'installazione.
-2. A flash finito, riinserisci la scheda: sul computer compare la partizione
-   **`bootfs`** (su macOS in `/Volumes/bootfs`, su Windows come unità con
-   `config.txt` e `cmdline.txt`).
-3. Crea lì dentro una cartella `usb-video-player` e copiaci i file di questo
+## Installazione
+
+Se hai già accesso al Pi via SSH, copia i file in una cartella qualsiasi e lancia:
+
+```bash
+sudo bash install.sh
+```
+
+L'installer scarica i pacchetti necessari (mpv, exfatprogs, ntfs-3g, imagemagick,
+alsa-utils, fonts-dejavu-core), genera l'immagine di avviso, configura il
+pulsante di accensione e abilita il servizio. Al termine il player è già in
+funzione.
+
+### Installazione dalla scheda SD, senza SSH
+
+Utile quando il Pi non è ancora raggiungibile.
+
+1. Scrivi Raspberry Pi OS Lite 64 bit con Raspberry Pi Imager. Nelle opzioni
+   avanzate imposta **utente e password**; l'SSH è consigliato ma facoltativo.
+   Con cavo ethernet la rete funziona da sola via DHCP e la Wi-Fi non serve.
+2. A flash finito reinserisci la scheda nel computer: compare la partizione
+   **`bootfs`**, l'unica leggibile da macOS e Windows.
+3. Crea al suo interno una cartella `usb-video-player` e copiaci i file del
    progetto.
 4. Espelli la scheda, inseriscila nel Pi e accendi.
-
-Poi scegli una delle due strade.
-
-### A) Un comando a mano (più semplice)
-
-Collega una tastiera USB, accedi con l'utente impostato nell'Imager e digita:
+5. Con tastiera o via SSH, un comando solo:
 
 ```bash
 sudo bash /boot/firmware/usb-video-player/install.sh
 ```
 
-In alternativa, la stessa riga via SSH: `ssh utente@raspberrypi.local`.
+### Installazione completamente automatica
 
-### B) Installazione automatica al primo avvio
-
-Sulla partizione `bootfs` c'è già un file **`firstrun.sh`** creato dall'Imager.
-Aprilo con un editor di testo semplice (su macOS: `nano`, BBEdit o
-TextEdit in modalità solo testo — mai un programma che aggiunge formattazione) e
-aggiungi questa riga **subito dopo la prima riga** `#!/bin/bash`:
+Per saltare anche quell'unico comando: sulla partizione `bootfs` c'è il file
+`firstrun.sh` generato dall'Imager. Aprilo con un editor di testo puro e
+aggiungi questa riga **subito dopo** `#!/bin/bash`:
 
 ```bash
 bash /boot/firmware/usb-video-player/firstboot.sh
 ```
 
-Salva, espelli, accendi il Pi. Al primo avvio viene creato un servizio che
-aspetta la rete, esegue `install.sh` e si disattiva da solo. Bastano un paio di
-minuti: al termine il player parte e mostra il messaggio di avviso.
+Al primo avvio viene creato un servizio one-shot che attende la rete, esegue
+`install.sh` e si disattiva da solo. Se qualcosa va storto il servizio non si
+disattiva e riprova al riavvio successivo; il motivo si legge con
+`journalctl -u usb-video-player-setup`.
 
-Se l'installazione fallisce (ad esempio Wi-Fi non connessa) il servizio non si
-disattiva e riprova al riavvio successivo. Per controllare:
+`firstboot.sh` non installa direttamente perché al momento in cui gira
+`firstrun.sh` la rete non è ancora attiva e `apt` fallirebbe.
 
-```bash
-journalctl -u usb-video-player-setup
-```
-
-Nota: `firstrun.sh` esiste solo se hai usato le opzioni avanzate dell'Imager. Se
-non c'è, usa la strada A.
-
-
-## Cosa fa l'installer
-
-Installa i pacchetti necessari (mpv, exfatprogs, ntfs-3g, imagemagick,
-alsa-utils, fonts-dejavu-core), genera l'immagine di avviso, configura il
-pulsante di accensione e abilita il servizio. Al termine il player è già in
-funzione e riparte a ogni avvio del Pi.
-
-Per rimuovere tutto: `sudo bash uninstall.sh`.
+> Il `firstrun.sh` va modificato con un editor di puro testo. Caratteri di
+> formattazione o fine riga in stile Windows possono impedire il completamento
+> del primo avvio.
 
 ## Funzionamento
 
-1. Ogni 2 secondi lo script cerca chiavette USB e le monta in sola lettura sotto
-   `/media/usbvideo`.
-2. Cerca i file video e li ordina con `sort -V`, che rispetta sia l'ordine
-   alfabetico sia quello numerico naturale (`clip2` prima di `clip10`).
-3. Mostra per 10 secondi un countdown con il numero di video trovati.
-4. Riproduce tutta la playlist in loop infinito con una sola istanza di mpv,
-   quindi senza schermate nere tra un file e l'altro.
-5. Se togli la chiavetta torna al messaggio di avviso; se la reinserisci
-   ricomincia dal countdown.
+Ogni due secondi lo script cerca le chiavette USB collegate e le monta in sola
+lettura sotto `/media/usbvideo`. Costruisce poi la lista dei file video
+ordinandoli con `sort -V`, mostra il countdown e passa l'intera playlist a una
+singola istanza di mpv con `--loop-playlist=inf`: essendo un solo processo, il
+passaggio da un file all'altro non produce interruzioni.
+
+Se la chiavetta viene rimossa la playlist si svuota e torna il messaggio di
+avviso; se viene reinserita si riparte dal countdown.
 
 Estensioni riconosciute: mp4, mkv, avi, mov, m4v, mpg, mpeg, ts, m2ts, webm,
 wmv, flv, vob, 3gp, ogv.
 
 ## Configurazione
 
-Le variabili sono in cima a `usb-video-player.sh`:
+Le variabili sono in cima a `usb-video-player.sh`.
 
-| Variabile | Default | Note |
+| Variabile | Default | Descrizione |
 |---|---|---|
-| `COUNTDOWN` | `10` | secondi di countdown; `0` non è supportato, usa un valore ≥ 1 |
+| `COUNTDOWN` | `10` | secondi di countdown (minimo 1) |
 | `POLL` | `2` | intervallo di controllo delle chiavette |
 | `DRM_CONNECTOR` | `HDMI-A-1` | uscita video |
 | `AUDIO_DEVICE` | `alsa/sysdefault:CARD=vc4hdmi0` | uscita audio |
 | `VIDEO_EXT` | vedi sopra | estensioni cercate |
+| `MOUNT_ROOT` | `/media/usbvideo` | punto di montaggio |
 
-Dopo ogni modifica: `sudo systemctl restart usb-video-player`.
+Dopo ogni modifica:
 
-Se l'audio non esce, elenca i dispositivi disponibili con
-`mpv --audio-device=help` e correggi `AUDIO_DEVICE`.
-
-## HDMI sempre attivo
-
-Se lo schermo si accende dopo il Pi, l'uscita può restare spenta. Per forzarla,
-in `/boot/firmware/cmdline.txt` aggiungi alla riga esistente (è una riga sola):
-
-```
-video=HDMI-A-1:1920x1080@60D
+```bash
+sudo systemctl restart usb-video-player
 ```
 
 ## Comandi utili
 
 ```bash
-journalctl -u usb-video-player -f      # log in tempo reale
-systemctl status usb-video-player      # stato
-sudo systemctl restart usb-video-player
-sudo systemctl stop usb-video-player   # ferma ora, riparte al boot
-sudo systemctl disable --now usb-video-player   # disattiva del tutto
+journalctl -u usb-video-player -f              # log in tempo reale
+systemctl status usb-video-player              # stato del servizio
+sudo systemctl restart usb-video-player        # riavvia
+sudo systemctl stop usb-video-player           # ferma, riparte al boot
+sudo systemctl disable --now usb-video-player  # disattiva del tutto
 ```
 
 ## Spegnimento
 
-Pressione breve del pulsante interno del Pi 5: spegnimento pulito. Una seconda
-pressione lo riaccende. Tenerlo premuto a lungo forza lo spegnimento immediato,
-da evitare.
+Una pressione breve del pulsante integrato del Pi 5 avvia uno spegnimento
+pulito; una seconda pressione riaccende. Tenerlo premuto a lungo forza lo
+spegnimento immediato, da evitare.
 
-Le chiavette sono montate in sola lettura, quindi staccarle a caldo non le
-danneggia. Il rischio riguarda solo la microSD di sistema.
+L'installer scrive un drop-in in `/etc/systemd/logind.conf.d/` che rende questo
+comportamento esplicito. Per disabilitare il pulsante — utile se il Pi è
+accessibile al pubblico — sostituisci `poweroff` con `ignore` in quel file.
 
-## Note sul Raspberry Pi 5
+## Risoluzione problemi
 
-- Non ha decodifica hardware H.264: l'1080p va bene in software, il 4K H.264
-  può scattare. Per i 4K conviene HEVC, che è accelerato.
-- Video con risoluzione o frame rate diversi tra loro possono causare un
-  brevissimo riadattamento al cambio file: per un risultato perfettamente
-  continuo conviene esportarli tutti nello stesso formato.
-- Il login sulla console tty1 non disturba la riproduzione. Se preferisci
-  disattivarlo, decommenta le due righe `Conflicts`/`After` in
-  `usb-video-player.service` (l'accesso SSH resta disponibile).
+**Schermo nero all'accensione.** Se lo schermo si accende dopo il Pi, l'uscita
+può restare spenta. Aggiungi alla riga esistente di `/boot/firmware/cmdline.txt`
+(è una riga sola):
+
+```
+video=HDMI-A-1:1920x1080@60D
+```
+
+**Nessun audio.** Elenca i dispositivi disponibili e correggi `AUDIO_DEVICE`:
+
+```bash
+mpv --audio-device=help
+```
+
+**Video a scatti.** Il Pi 5 non ha decodifica hardware H.264. L'1080p viene
+gestito in software senza problemi, il 4K H.264 può scattare: per i 4K conviene
+esportare in HEVC, che è accelerato.
+
+**Micro-interruzioni al cambio file.** Succede quando i video hanno risoluzione
+o frame rate diversi fra loro. Per un risultato perfettamente continuo esportali
+tutti nello stesso formato.
+
+**La chiavetta non viene letta.** Verifica il filesystem: exFAT, FAT32, NTFS ed
+ext4 sono supportati. Il formato APFS del Mac no.
+
+## Rimozione
+
+```bash
+sudo bash uninstall.sh
+```
+
+Rimuove servizio, script e configurazione. I pacchetti installati restano sul
+sistema.
+
+## Licenza
+
+MIT.
