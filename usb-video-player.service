@@ -1,0 +1,27 @@
+[Unit]
+Description=USB Video Player (riproduzione automatica video da chiavetta)
+After=multi-user.target local-fs.target
+Wants=multi-user.target
+
+# Libera la console: senza questo il prompt di login e il player si contendono
+# lo schermo e l'immagine lampeggia. L'accesso via SSH resta disponibile.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/usb-video-player.sh
+Restart=always
+RestartSec=5
+User=root
+
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+
+# il player deve poter diventare DRM master
+Environment=DISPLAY=
+Environment=WAYLAND_DISPLAY=
+
+[Install]
+WantedBy=multi-user.target
